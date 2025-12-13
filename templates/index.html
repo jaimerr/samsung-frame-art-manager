@@ -99,10 +99,10 @@
         position: relative;
         background: #000;
         border-radius: var(--radius-md);
-        overflow: visible;
         margin-bottom: 1.5rem;
         user-select: none;
-        padding: 60px;
+        padding: 40px;
+        min-height: 400px;
     }
 
     .crop-image-wrapper {
@@ -110,14 +110,12 @@
         display: flex;
         justify-content: center;
         align-items: center;
-        min-height: 300px;
-        max-height: 400px;
-        overflow: visible;
+        min-height: 320px;
     }
 
-    .crop-image-wrapper img {
+    #crop-image {
         max-width: 100%;
-        max-height: 500px;
+        max-height: 400px;
         display: block;
         pointer-events: none;
     }
@@ -128,7 +126,7 @@
         left: 0;
         right: 0;
         bottom: 0;
-        background: rgba(0, 0, 0, 0.7);
+        background: rgba(0, 0, 0, 0.6);
         pointer-events: none;
     }
 
@@ -139,7 +137,8 @@
         background: #000;
         box-sizing: border-box;
         touch-action: none;
-        box-shadow: 0 0 0 3px rgba(201, 169, 98, 0.3);
+        box-shadow: 0 0 0 2px rgba(201, 169, 98, 0.4);
+        z-index: 10;
     }
 
     .crop-box-inner {
@@ -149,10 +148,11 @@
         background: #000;
     }
 
-    .crop-box-inner img {
+    #crop-image-clone {
         position: absolute;
         max-width: none;
         pointer-events: none;
+        display: block;
     }
 
     /* Crop grid lines (rule of thirds) */
@@ -1323,25 +1323,36 @@
         document.getElementById('crop-format').textContent = 'Portrait 9:16';
         document.getElementById('crop-dimensions').textContent = '2160 × 3840';
         
-        // Load images
+        showModal('crop-modal');
+        
+        // Load images after modal is shown so dimensions are correct
         const img = document.getElementById('crop-image');
         const imgClone = document.getElementById('crop-image-clone');
-        img.src = `/uploads/${filename}`;
-        imgClone.src = `/uploads/${filename}`;
         
         img.onload = () => {
-            imgClone.onload = () => {
+            // Wait a frame for layout to complete
+            requestAnimationFrame(() => {
                 initializeCropBox();
-            };
+            });
         };
         
-        showModal('crop-modal');
+        imgClone.onload = () => {};
+        
+        // Set src after attaching handlers
+        img.src = `/uploads/${filename}`;
+        imgClone.src = `/uploads/${filename}`;
     }
 
     function initializeCropBox() {
         const img = document.getElementById('crop-image');
         const wrapper = document.getElementById('crop-wrapper');
         const cropBox = document.getElementById('crop-box');
+        
+        if (!img.complete || img.naturalWidth === 0) {
+            // Image not loaded yet, wait
+            setTimeout(initializeCropBox, 100);
+            return;
+        }
         
         // Get image display dimensions
         const imgRect = img.getBoundingClientRect();
@@ -1351,6 +1362,10 @@
         cropState.imgHeight = img.clientHeight;
         cropState.imgOffsetX = imgRect.left - wrapperRect.left;
         cropState.imgOffsetY = imgRect.top - wrapperRect.top;
+        cropState.naturalWidth = img.naturalWidth;
+        cropState.naturalHeight = img.naturalHeight;
+        
+        console.log('Crop init:', cropState.imgWidth, cropState.imgHeight, cropState.imgOffsetX, cropState.imgOffsetY);
         
         // Calculate crop box size to maintain aspect ratio
         const targetAspect = cropState.aspectRatio;
@@ -1359,19 +1374,25 @@
         let boxWidth, boxHeight;
         if (imgAspect > targetAspect) {
             // Image is wider - constrain by height
-            boxHeight = cropState.imgHeight * 0.9;
+            boxHeight = cropState.imgHeight * 0.85;
             boxWidth = boxHeight * targetAspect;
         } else {
-            // Image is taller - constrain by width
-            boxWidth = cropState.imgWidth * 0.9;
+            // Image is taller - constrain by width  
+            boxWidth = cropState.imgWidth * 0.85;
             boxHeight = boxWidth / targetAspect;
         }
         
-        // Center the crop box
+        // Ensure minimum size
+        boxWidth = Math.max(boxWidth, 100);
+        boxHeight = Math.max(boxHeight, 100);
+        
+        // Center the crop box on the image
         cropState.boxWidth = boxWidth;
         cropState.boxHeight = boxHeight;
         cropState.boxX = cropState.imgOffsetX + (cropState.imgWidth - boxWidth) / 2;
         cropState.boxY = cropState.imgOffsetY + (cropState.imgHeight - boxHeight) / 2;
+        
+        console.log('Crop box:', cropState.boxX, cropState.boxY, cropState.boxWidth, cropState.boxHeight);
         
         updateCropBoxDisplay();
         
@@ -1590,14 +1611,17 @@
 
     function getCropBoxPercentages() {
         // Convert pixel positions to percentages relative to original image
-        const img = document.getElementById('crop-image');
-        const scaleX = img.naturalWidth / cropState.imgWidth;
-        const scaleY = img.naturalHeight / cropState.imgHeight;
+        if (!cropState.imgWidth || !cropState.imgHeight) {
+            console.error('Crop state not initialized');
+            return null;
+        }
         
         const left = (cropState.boxX - cropState.imgOffsetX) / cropState.imgWidth * 100;
         const top = (cropState.boxY - cropState.imgOffsetY) / cropState.imgHeight * 100;
         const right = left + (cropState.boxWidth / cropState.imgWidth * 100);
         const bottom = top + (cropState.boxHeight / cropState.imgHeight * 100);
+        
+        console.log('Crop percentages:', left, top, right, bottom);
         
         return [left, top, right, bottom];
     }
@@ -1615,6 +1639,10 @@
         
         try {
             const cropBox = getCropBoxPercentages();
+            
+            if (!cropBox) {
+                throw new Error('Crop area not initialized. Please try again.');
+            }
             
             const result = await api(`/api/images/${currentFilename}/crop`, {
                 method: 'POST',

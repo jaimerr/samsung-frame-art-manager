@@ -425,9 +425,9 @@ class ImageProcessor:
                 
                 orig_width, orig_height = img.size
                 
-                if crop_box:
+                if crop_box and all(v is not None for v in crop_box):
                     # Use provided crop box (percentages - can be negative or >100)
-                    left_pct, top_pct, right_pct, bottom_pct = crop_box
+                    left_pct, top_pct, right_pct, bottom_pct = [float(v) for v in crop_box]
                     
                     # Calculate pixel coordinates (can be negative or beyond image)
                     crop_left = orig_width * left_pct / 100
