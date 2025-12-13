@@ -121,8 +121,12 @@ def get_image_metadata(filename: str) -> dict:
         info['uploaded'] = datetime.fromtimestamp(
             os.path.getmtime(filepath)
         ).isoformat()
-        info['processed'] = os.path.exists(processed_path)
-        info['processed_path'] = processed_path if info['processed'] else None
+        
+        # Check if processed OR if it's already a cropped/processed image (contains _portrait or _landscape)
+        stem = Path(filename).stem
+        is_cropped = '_portrait' in stem or '_landscape' in stem
+        info['processed'] = os.path.exists(processed_path) or is_cropped
+        info['processed_path'] = processed_path if os.path.exists(processed_path) else (filepath if is_cropped else None)
     
     return info
 

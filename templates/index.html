@@ -134,18 +134,21 @@
         position: absolute;
         border: 3px solid var(--accent-gold);
         cursor: move;
-        background: #000;
         box-sizing: border-box;
         touch-action: none;
-        box-shadow: 0 0 0 2px rgba(201, 169, 98, 0.4);
+        box-shadow: 0 0 0 2px rgba(201, 169, 98, 0.4), inset 0 0 0 1000px #000;
         z-index: 10;
+        overflow: hidden;
     }
 
     .crop-box-inner {
         position: absolute;
-        inset: 0;
+        left: 0;
+        top: 0;
+        right: 0;
+        bottom: 0;
         overflow: hidden;
-        background: #000;
+        /* Black shows through where image doesn't cover */
     }
 
     #crop-image-clone {
@@ -153,6 +156,7 @@
         max-width: none;
         pointer-events: none;
         display: block;
+        /* Will be positioned via JS to align with original image */
     }
 
     /* Crop grid lines (rule of thirds) */
@@ -1406,19 +1410,36 @@
         const imgClone = document.getElementById('crop-image-clone');
         const img = document.getElementById('crop-image');
         
+        // Position and size the crop box
         cropBox.style.left = `${cropState.boxX}px`;
         cropBox.style.top = `${cropState.boxY}px`;
         cropBox.style.width = `${cropState.boxWidth}px`;
         cropBox.style.height = `${cropState.boxHeight}px`;
         
-        // Position the clone image to show the cropped area
+        // Calculate how the crop box relates to the image
+        // offsetX/Y = how far the crop box's top-left is from the image's top-left
         const offsetX = cropState.boxX - cropState.imgOffsetX;
         const offsetY = cropState.boxY - cropState.imgOffsetY;
         
+        // The clone image should be positioned so that:
+        // - When crop box is over the image, the matching part of the image shows
+        // - When crop box extends beyond, we see black (the crop-box background)
+        
+        // Clone is positioned relative to crop-box-inner (which is at 0,0 of crop box)
+        // We need to show the part of the image that would be at this crop position
+        // So if crop is at offsetX=100 into the image, we shift clone left by 100
         imgClone.style.width = `${cropState.imgWidth}px`;
         imgClone.style.height = `${cropState.imgHeight}px`;
-        imgClone.style.left = `-${offsetX}px`;
-        imgClone.style.top = `-${offsetY}px`;
+        imgClone.style.left = `${-offsetX}px`;
+        imgClone.style.top = `${-offsetY}px`;
+        
+        // Debug info
+        const dimsEl = document.getElementById('crop-dimensions');
+        if (dimsEl) {
+            const outW = cropPortrait ? 2160 : 3840;
+            const outH = cropPortrait ? 3840 : 2160;
+            dimsEl.textContent = `${outW} × ${outH}`;
+        }
     }
 
     function setOrientation(portrait) {
