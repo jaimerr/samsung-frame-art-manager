@@ -1,0 +1,13 @@
+# Samsung Frame Art Manager - Dependencies
+Flask==3.0.0
+Werkzeug==3.0.1
+Pillow==10.1.0
+pillow-heif==0.15.0
+python-dotenv==1.0.0
+websocket-client==1.7.0
+wakeonlan==3.1.0
+aiohttp==3.9.1
+
+# Samsung TV WebSocket API (install separately)
+# pip install "git+https://github.com/xchwarze/samsung-tv-ws-api.git#egg=samsungtvws[async,encrypted]"
+

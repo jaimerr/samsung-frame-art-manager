@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+env/
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Project specific
+uploads/
+processed/
+thumbnails/
+config.json
+.tv_token
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+

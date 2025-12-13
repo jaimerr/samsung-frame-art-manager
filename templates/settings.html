@@ -1,0 +1,569 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - Frame Art Manager{% endblock %}
+
+{% block extra_styles %}
+<style>
+    .settings-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .settings-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-lg);
+    }
+
+    .settings-card-header {
+        padding: 1.25rem 1.5rem;
+        border-bottom: 1px solid var(--border-subtle);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .settings-card-icon {
+        width: 40px;
+        height: 40px;
+        background: var(--bg-tertiary);
+        border-radius: var(--radius-md);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+    }
+
+    .settings-card-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+    }
+
+    .settings-card-body {
+        padding: 1.5rem;
+    }
+
+    .settings-section {
+        margin-bottom: 2rem;
+    }
+
+    .settings-section:last-child {
+        margin-bottom: 0;
+    }
+
+    .settings-section-title {
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 1rem;
+    }
+
+    /* Connection Status */
+    .connection-status {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 1rem;
+        background: var(--bg-secondary);
+        border-radius: var(--radius-md);
+        margin-bottom: 1.5rem;
+    }
+
+    .connection-icon {
+        width: 48px;
+        height: 48px;
+        background: var(--bg-tertiary);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+    }
+
+    .connection-info h4 {
+        font-size: 1rem;
+        margin-bottom: 2px;
+    }
+
+    .connection-info p {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+    }
+
+    .connection-status.connected .connection-icon {
+        background: rgba(74, 222, 128, 0.1);
+    }
+
+    .connection-status.disconnected .connection-icon {
+        background: rgba(248, 113, 113, 0.1);
+    }
+
+    /* IP Input with Button */
+    .ip-input-group {
+        display: flex;
+        gap: 0.75rem;
+    }
+
+    .ip-input-group .form-input {
+        flex: 1;
+    }
+
+    /* Help Box */
+    .help-box {
+        padding: 1rem;
+        background: rgba(201, 169, 98, 0.05);
+        border: 1px solid rgba(201, 169, 98, 0.2);
+        border-radius: var(--radius-md);
+        margin-top: 1.5rem;
+    }
+
+    .help-box-title {
+        font-weight: 600;
+        color: var(--accent-gold);
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .help-box p {
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+        margin-bottom: 0.5rem;
+    }
+
+    .help-box code {
+        background: var(--bg-secondary);
+        padding: 2px 6px;
+        border-radius: var(--radius-sm);
+        font-family: 'SF Mono', Monaco, monospace;
+        font-size: 0.85em;
+    }
+
+    .help-box ol {
+        padding-left: 1.25rem;
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+    }
+
+    .help-box li {
+        margin-bottom: 0.5rem;
+    }
+
+    /* Color Picker */
+    .color-picker-group {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .color-preview {
+        width: 48px;
+        height: 48px;
+        border-radius: var(--radius-md);
+        border: 2px solid var(--border-light);
+        cursor: pointer;
+    }
+
+    .color-inputs {
+        display: flex;
+        gap: 8px;
+    }
+
+    .color-input {
+        width: 60px;
+        text-align: center;
+    }
+
+    /* Warning Banner */
+    .warning-banner {
+        padding: 1rem 1.25rem;
+        background: rgba(251, 191, 36, 0.1);
+        border: 1px solid rgba(251, 191, 36, 0.3);
+        border-radius: var(--radius-md);
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        margin-bottom: 1.5rem;
+    }
+
+    .warning-banner-icon {
+        font-size: 1.25rem;
+        line-height: 1;
+    }
+
+    .warning-banner-text {
+        font-size: 0.9rem;
+        color: var(--warning);
+    }
+
+    .warning-banner-text a {
+        color: var(--accent-gold);
+    }
+
+    /* Actions */
+    .settings-actions {
+        display: flex;
+        gap: 0.75rem;
+        margin-top: 2rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--border-subtle);
+    }
+
+    @media (max-width: 768px) {
+        .settings-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .ip-input-group {
+            flex-direction: column;
+        }
+
+        .color-picker-group {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Settings</h1>
+    <p class="page-subtitle">Configure your Samsung Frame TV connection and image processing</p>
+</div>
+
+{% if not samsungtvws_available %}
+<div class="warning-banner">
+    <span class="warning-banner-icon">⚠️</span>
+    <div class="warning-banner-text">
+        <strong>Samsung TV library not installed.</strong><br>
+        Run this command to install it:<br>
+        <code>pip install "git+https://github.com/xchwarze/samsung-tv-ws-api.git#egg=samsungtvws[async,encrypted]"</code>
+    </div>
+</div>
+{% endif %}
+
+<div class="settings-grid">
+    <!-- TV Connection -->
+    <div class="settings-card">
+        <div class="settings-card-header">
+            <div class="settings-card-icon">📺</div>
+            <h2 class="settings-card-title">TV Connection</h2>
+        </div>
+        <div class="settings-card-body">
+            <div class="connection-status {{ 'connected' if tv_connected else 'disconnected' }}" id="connection-status">
+                <div class="connection-icon">
+                    {{ '✓' if tv_connected else '✕' }}
+                </div>
+                <div class="connection-info">
+                    <h4 id="connection-title">{{ 'Connected' if tv_connected else 'Not Connected' }}</h4>
+                    <p id="connection-subtitle">{{ config.tv_ip if config.tv_ip else 'No IP configured' }}</p>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="tv-ip">Samsung Frame TV IP Address</label>
+                <div class="ip-input-group">
+                    <input type="text" class="form-input" id="tv-ip" 
+                           placeholder="192.168.1.100" 
+                           value="{{ config.tv_ip or '' }}">
+                    <button class="btn btn-primary" onclick="connectTV()">
+                        Connect
+                    </button>
+                </div>
+                <p class="form-hint">Enter the local IP address of your Samsung Frame TV</p>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="tv-port">Port</label>
+                <input type="number" class="form-input" id="tv-port" 
+                       value="{{ config.tv_port or 8002 }}" min="1" max="65535">
+                <p class="form-hint">Default is 8002. Only change if needed.</p>
+            </div>
+
+            <div class="toggle-wrapper">
+                <div>
+                    <div class="toggle-label">Use Mock Mode</div>
+                    <div class="toggle-description">Test the app without a real TV connection</div>
+                </div>
+                <label class="toggle">
+                    <input type="checkbox" id="use-mock" {{ 'checked' if config.use_mock else '' }}>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+
+            <div class="help-box">
+                <div class="help-box-title">💡 How to find your TV's IP address</div>
+                <ol>
+                    <li>On your Samsung TV, go to <strong>Settings</strong></li>
+                    <li>Navigate to <strong>General → Network → Network Status</strong></li>
+                    <li>Select <strong>IP Settings</strong> to see the IP address</li>
+                    <li>We recommend setting a static IP for your TV in your router settings</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <!-- Image Processing -->
+    <div class="settings-card">
+        <div class="settings-card-header">
+            <div class="settings-card-icon">🖼</div>
+            <h2 class="settings-card-title">Image Processing</h2>
+        </div>
+        <div class="settings-card-body">
+            <div class="form-group">
+                <label class="form-label" for="fit-mode">Default Fit Mode</label>
+                <select class="form-input form-select" id="fit-mode">
+                    <option value="contain" {{ 'selected' if config.default_fit_mode == 'contain' else '' }}>
+                        Contain - Fit entire image (may add letterbox)
+                    </option>
+                    <option value="cover" {{ 'selected' if config.default_fit_mode == 'cover' else '' }}>
+                        Cover - Fill screen (may crop edges)
+                    </option>
+                    <option value="smart" {{ 'selected' if config.default_fit_mode == 'smart' else '' }}>
+                        Smart - Auto-select best option
+                    </option>
+                    <option value="stretch" {{ 'selected' if config.default_fit_mode == 'stretch' else '' }}>
+                        Stretch - Fill screen (may distort)
+                    </option>
+                </select>
+                <p class="form-hint">How images are resized to fit the 16:9 display</p>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="matte">Default Matte Style</label>
+                <select class="form-input form-select" id="matte">
+                    <option value="none" {{ 'selected' if config.default_matte == 'none' else '' }}>No Matte</option>
+                    <option value="flexible" {{ 'selected' if config.default_matte == 'flexible' else '' }}>Flexible</option>
+                    <option value="modernthin" {{ 'selected' if config.default_matte == 'modernthin' else '' }}>Modern Thin</option>
+                    <option value="modern" {{ 'selected' if config.default_matte == 'modern' else '' }}>Modern</option>
+                    <option value="modernwide" {{ 'selected' if config.default_matte == 'modernwide' else '' }}>Modern Wide</option>
+                    <option value="shadowbox" {{ 'selected' if config.default_matte == 'shadowbox' else '' }}>Shadow Box</option>
+                    <option value="classic" {{ 'selected' if config.default_matte == 'classic' else '' }}>Classic</option>
+                </select>
+                <p class="form-hint">The frame style applied to images on The Frame</p>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Background Color (for letterbox)</label>
+                <div class="color-picker-group">
+                    <div class="color-preview" id="color-preview" 
+                         style="background: rgb({{ config.background_color[0] }}, {{ config.background_color[1] }}, {{ config.background_color[2] }});"
+                         onclick="document.getElementById('color-picker').click()">
+                    </div>
+                    <input type="color" id="color-picker" style="display:none;" 
+                           value="#{{ '%02x%02x%02x' % (config.background_color[0], config.background_color[1], config.background_color[2]) }}"
+                           onchange="updateColorFromPicker(this.value)">
+                    <div class="color-inputs">
+                        <input type="number" class="form-input color-input" id="color-r" 
+                               min="0" max="255" value="{{ config.background_color[0] }}"
+                               onchange="updateColorPreview()">
+                        <input type="number" class="form-input color-input" id="color-g" 
+                               min="0" max="255" value="{{ config.background_color[1] }}"
+                               onchange="updateColorPreview()">
+                        <input type="number" class="form-input color-input" id="color-b" 
+                               min="0" max="255" value="{{ config.background_color[2] }}"
+                               onchange="updateColorPreview()">
+                    </div>
+                </div>
+            </div>
+
+            <div class="toggle-wrapper" style="margin-bottom: 1rem;">
+                <div>
+                    <div class="toggle-label">Use Blurred Background</div>
+                    <div class="toggle-description">Use a blurred version of the image instead of solid color</div>
+                </div>
+                <label class="toggle">
+                    <input type="checkbox" id="use-blur" {{ 'checked' if config.use_blur_background else '' }}>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+
+            <div class="toggle-wrapper">
+                <div>
+                    <div class="toggle-label">Auto-Process Uploads</div>
+                    <div class="toggle-description">Automatically process images when uploaded</div>
+                </div>
+                <label class="toggle">
+                    <input type="checkbox" id="auto-process" {{ 'checked' if config.auto_process else '' }}>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+
+            <div class="settings-actions">
+                <button class="btn btn-primary" onclick="saveSettings()">
+                    Save Settings
+                </button>
+                <button class="btn btn-secondary" onclick="resetSettings()">
+                    Reset to Defaults
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Art Mode Control (if connected) -->
+{% if tv_connected %}
+<div class="settings-card" style="margin-top: 1.5rem;">
+    <div class="settings-card-header">
+        <div class="settings-card-icon">🎨</div>
+        <h2 class="settings-card-title">Art Mode Control</h2>
+    </div>
+    <div class="settings-card-body">
+        <p class="text-muted mb-4">Control your Samsung Frame's Art Mode directly from here.</p>
+        <div class="flex gap-4">
+            <button class="btn btn-primary" onclick="setArtMode(true)">
+                Enable Art Mode
+            </button>
+            <button class="btn btn-secondary" onclick="setArtMode(false)">
+                Disable Art Mode
+            </button>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function updateColorPreview() {
+        const r = document.getElementById('color-r').value;
+        const g = document.getElementById('color-g').value;
+        const b = document.getElementById('color-b').value;
+        document.getElementById('color-preview').style.background = `rgb(${r}, ${g}, ${b})`;
+        document.getElementById('color-picker').value = rgbToHex(r, g, b);
+    }
+
+    function updateColorFromPicker(hex) {
+        const rgb = hexToRgb(hex);
+        document.getElementById('color-r').value = rgb.r;
+        document.getElementById('color-g').value = rgb.g;
+        document.getElementById('color-b').value = rgb.b;
+        document.getElementById('color-preview').style.background = hex;
+    }
+
+    function rgbToHex(r, g, b) {
+        return '#' + [r, g, b].map(x => {
+            const hex = parseInt(x).toString(16);
+            return hex.length === 1 ? '0' + hex : hex;
+        }).join('');
+    }
+
+    function hexToRgb(hex) {
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result ? {
+            r: parseInt(result[1], 16),
+            g: parseInt(result[2], 16),
+            b: parseInt(result[3], 16)
+        } : null;
+    }
+
+    async function connectTV() {
+        const ip = document.getElementById('tv-ip').value.trim();
+        const port = parseInt(document.getElementById('tv-port').value) || 8002;
+        const useMock = document.getElementById('use-mock').checked;
+        
+        if (!ip) {
+            showToast('Please enter a TV IP address', 'error');
+            return;
+        }
+
+        try {
+            // Save config first
+            await api('/api/config', {
+                method: 'POST',
+                body: JSON.stringify({
+                    tv_ip: ip,
+                    tv_port: port,
+                    use_mock: useMock
+                })
+            });
+
+            // Try to connect
+            const result = await api('/api/tv/connect', { method: 'POST' });
+            
+            const status = document.getElementById('connection-status');
+            const title = document.getElementById('connection-title');
+            const subtitle = document.getElementById('connection-subtitle');
+            
+            if (result.success) {
+                status.className = 'connection-status connected';
+                status.querySelector('.connection-icon').textContent = '✓';
+                title.textContent = 'Connected';
+                subtitle.textContent = ip;
+                showToast('Successfully connected to TV!', 'success');
+            } else {
+                throw new Error('Connection failed');
+            }
+        } catch (e) {
+            showToast(`Failed to connect: ${e.message}`, 'error');
+            
+            const status = document.getElementById('connection-status');
+            status.className = 'connection-status disconnected';
+            status.querySelector('.connection-icon').textContent = '✕';
+            document.getElementById('connection-title').textContent = 'Connection Failed';
+        }
+    }
+
+    async function saveSettings() {
+        const config = {
+            tv_ip: document.getElementById('tv-ip').value.trim(),
+            tv_port: parseInt(document.getElementById('tv-port').value) || 8002,
+            use_mock: document.getElementById('use-mock').checked,
+            default_fit_mode: document.getElementById('fit-mode').value,
+            default_matte: document.getElementById('matte').value,
+            background_color: [
+                parseInt(document.getElementById('color-r').value) || 0,
+                parseInt(document.getElementById('color-g').value) || 0,
+                parseInt(document.getElementById('color-b').value) || 0
+            ],
+            use_blur_background: document.getElementById('use-blur').checked,
+            auto_process: document.getElementById('auto-process').checked
+        };
+
+        try {
+            await api('/api/config', {
+                method: 'POST',
+                body: JSON.stringify(config)
+            });
+            showToast('Settings saved successfully!', 'success');
+        } catch (e) {
+            showToast(`Failed to save: ${e.message}`, 'error');
+        }
+    }
+
+    function resetSettings() {
+        if (!confirm('Reset all settings to defaults?')) return;
+        
+        document.getElementById('tv-ip').value = '';
+        document.getElementById('tv-port').value = '8002';
+        document.getElementById('use-mock').checked = false;
+        document.getElementById('fit-mode').value = 'contain';
+        document.getElementById('matte').value = 'none';
+        document.getElementById('color-r').value = '0';
+        document.getElementById('color-g').value = '0';
+        document.getElementById('color-b').value = '0';
+        document.getElementById('use-blur').checked = false;
+        document.getElementById('auto-process').checked = true;
+        
+        updateColorPreview();
+        saveSettings();
+    }
+
+    async function setArtMode(enabled) {
+        try {
+            await api('/api/tv/art-mode', {
+                method: 'POST',
+                body: JSON.stringify({ enabled })
+            });
+            showToast(`Art Mode ${enabled ? 'enabled' : 'disabled'}!`, 'success');
+        } catch (e) {
+            showToast(`Failed: ${e.message}`, 'error');
+        }
+    }
+</script>
+{% endblock %}
+
