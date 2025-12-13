@@ -165,20 +165,48 @@
         border: 1px solid rgba(255, 255, 255, 0.25);
     }
 
-    /* Corner handles */
+    /* Corner handles - interactive for resizing */
     .crop-handle {
         position: absolute;
-        width: 20px;
-        height: 20px;
+        width: 24px;
+        height: 24px;
         background: var(--accent-gold);
         border: 2px solid #fff;
-        pointer-events: none;
+        border-radius: 2px;
+        pointer-events: auto;
+        z-index: 10;
     }
 
-    .crop-handle.tl { top: -10px; left: -10px; cursor: nwse-resize; }
-    .crop-handle.tr { top: -10px; right: -10px; cursor: nesw-resize; }
-    .crop-handle.bl { bottom: -10px; left: -10px; cursor: nesw-resize; }
-    .crop-handle.br { bottom: -10px; right: -10px; cursor: nwse-resize; }
+    .crop-handle:hover {
+        background: var(--accent-gold-light);
+        transform: scale(1.1);
+    }
+
+    .crop-handle.tl { top: -12px; left: -12px; cursor: nwse-resize; }
+    .crop-handle.tr { top: -12px; right: -12px; cursor: nesw-resize; }
+    .crop-handle.bl { bottom: -12px; left: -12px; cursor: nesw-resize; }
+    .crop-handle.br { bottom: -12px; right: -12px; cursor: nwse-resize; }
+    
+    /* Edge handles for more precise control */
+    .crop-handle.tm, .crop-handle.bm {
+        width: 40px;
+        height: 12px;
+        left: 50%;
+        transform: translateX(-50%);
+        cursor: ns-resize;
+    }
+    .crop-handle.tm { top: -6px; }
+    .crop-handle.bm { bottom: -6px; }
+    
+    .crop-handle.ml, .crop-handle.mr {
+        width: 12px;
+        height: 40px;
+        top: 50%;
+        transform: translateY(-50%);
+        cursor: ew-resize;
+    }
+    .crop-handle.ml { left: -6px; }
+    .crop-handle.mr { right: -6px; }
 
     /* Dimension overlay */
     .crop-dimensions {
@@ -335,15 +363,18 @@
 
     .image-preview {
         position: relative;
-        aspect-ratio: 16/9;
+        aspect-ratio: 4/3;
         background: var(--bg-secondary);
         overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
 
     .image-preview img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
         transition: transform var(--transition-slow);
     }
 
@@ -808,10 +839,14 @@
                             <div></div><div></div><div></div>
                             <div></div><div></div><div></div>
                         </div>
-                        <div class="crop-handle tl"></div>
-                        <div class="crop-handle tr"></div>
-                        <div class="crop-handle bl"></div>
-                        <div class="crop-handle br"></div>
+                        <div class="crop-handle tl" data-handle="tl"></div>
+                        <div class="crop-handle tr" data-handle="tr"></div>
+                        <div class="crop-handle bl" data-handle="bl"></div>
+                        <div class="crop-handle br" data-handle="br"></div>
+                        <div class="crop-handle tm" data-handle="tm"></div>
+                        <div class="crop-handle bm" data-handle="bm"></div>
+                        <div class="crop-handle ml" data-handle="ml"></div>
+                        <div class="crop-handle mr" data-handle="mr"></div>
                         <div class="crop-dimensions" id="crop-dimensions">2160 × 3840</div>
                     </div>
                 </div>
@@ -1249,13 +1284,17 @@
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
 
-    // Crop functionality with draggable box
+    // Crop functionality with draggable and resizable box
     let cropState = {
         isDragging: false,
+        isResizing: false,
+        resizeHandle: null,
         startX: 0,
         startY: 0,
         boxStartX: 0,
         boxStartY: 0,
+        boxStartWidth: 0,
+        boxStartHeight: 0,
         imgWidth: 0,
         imgHeight: 0,
         imgOffsetX: 0,
@@ -1264,7 +1303,8 @@
         boxY: 0,
         boxWidth: 0,
         boxHeight: 0,
-        aspectRatio: 9/16 // Portrait default
+        aspectRatio: 9/16, // Portrait default
+        minSize: 50 // Minimum crop box size
     };
 
     async function showCropModal(filename) {
@@ -1379,24 +1419,35 @@
         initializeCropBox();
     }
 
-    // Drag functionality
+    // Drag and Resize functionality
     function initCropDrag() {
         const cropBox = document.getElementById('crop-box');
-        const container = document.getElementById('crop-container');
         
+        // Handle drag on the box itself
         cropBox.addEventListener('mousedown', startDrag);
         cropBox.addEventListener('touchstart', startDrag, { passive: false });
         
-        document.addEventListener('mousemove', drag);
-        document.addEventListener('touchmove', drag, { passive: false });
+        // Handle resize on corner/edge handles
+        document.querySelectorAll('.crop-handle').forEach(handle => {
+            handle.addEventListener('mousedown', startResize);
+            handle.addEventListener('touchstart', startResize, { passive: false });
+        });
         
-        document.addEventListener('mouseup', endDrag);
-        document.addEventListener('touchend', endDrag);
+        document.addEventListener('mousemove', handleMove);
+        document.addEventListener('touchmove', handleMove, { passive: false });
+        
+        document.addEventListener('mouseup', endInteraction);
+        document.addEventListener('touchend', endInteraction);
     }
 
     function startDrag(e) {
+        // Don't start drag if clicking on a handle
+        if (e.target.classList.contains('crop-handle')) return;
+        
         e.preventDefault();
+        e.stopPropagation();
         cropState.isDragging = true;
+        cropState.isResizing = false;
         
         const pos = getEventPos(e);
         cropState.startX = pos.x;
@@ -1407,8 +1458,31 @@
         document.getElementById('crop-box').style.cursor = 'grabbing';
     }
 
+    function startResize(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        cropState.isResizing = true;
+        cropState.isDragging = false;
+        cropState.resizeHandle = e.target.dataset.handle;
+        
+        const pos = getEventPos(e);
+        cropState.startX = pos.x;
+        cropState.startY = pos.y;
+        cropState.boxStartX = cropState.boxX;
+        cropState.boxStartY = cropState.boxY;
+        cropState.boxStartWidth = cropState.boxWidth;
+        cropState.boxStartHeight = cropState.boxHeight;
+    }
+
+    function handleMove(e) {
+        if (cropState.isDragging) {
+            drag(e);
+        } else if (cropState.isResizing) {
+            resize(e);
+        }
+    }
+
     function drag(e) {
-        if (!cropState.isDragging) return;
         e.preventDefault();
         
         const pos = getEventPos(e);
@@ -1431,8 +1505,113 @@
         updateCropBoxDisplay();
     }
 
-    function endDrag() {
+    function resize(e) {
+        e.preventDefault();
+        
+        const pos = getEventPos(e);
+        const deltaX = pos.x - cropState.startX;
+        const deltaY = pos.y - cropState.startY;
+        const handle = cropState.resizeHandle;
+        const aspect = cropState.aspectRatio;
+        
+        let newX = cropState.boxStartX;
+        let newY = cropState.boxStartY;
+        let newWidth = cropState.boxStartWidth;
+        let newHeight = cropState.boxStartHeight;
+        
+        // Calculate new dimensions based on which handle is being dragged
+        // Maintain aspect ratio while resizing
+        switch (handle) {
+            case 'br': // Bottom-right
+                newWidth = Math.max(cropState.minSize, cropState.boxStartWidth + deltaX);
+                newHeight = newWidth / aspect;
+                break;
+            case 'bl': // Bottom-left
+                newWidth = Math.max(cropState.minSize, cropState.boxStartWidth - deltaX);
+                newHeight = newWidth / aspect;
+                newX = cropState.boxStartX + cropState.boxStartWidth - newWidth;
+                break;
+            case 'tr': // Top-right
+                newWidth = Math.max(cropState.minSize, cropState.boxStartWidth + deltaX);
+                newHeight = newWidth / aspect;
+                newY = cropState.boxStartY + cropState.boxStartHeight - newHeight;
+                break;
+            case 'tl': // Top-left
+                newWidth = Math.max(cropState.minSize, cropState.boxStartWidth - deltaX);
+                newHeight = newWidth / aspect;
+                newX = cropState.boxStartX + cropState.boxStartWidth - newWidth;
+                newY = cropState.boxStartY + cropState.boxStartHeight - newHeight;
+                break;
+            case 'tm': // Top-middle
+                newHeight = Math.max(cropState.minSize, cropState.boxStartHeight - deltaY);
+                newWidth = newHeight * aspect;
+                newX = cropState.boxStartX + (cropState.boxStartWidth - newWidth) / 2;
+                newY = cropState.boxStartY + cropState.boxStartHeight - newHeight;
+                break;
+            case 'bm': // Bottom-middle
+                newHeight = Math.max(cropState.minSize, cropState.boxStartHeight + deltaY);
+                newWidth = newHeight * aspect;
+                newX = cropState.boxStartX + (cropState.boxStartWidth - newWidth) / 2;
+                break;
+            case 'ml': // Middle-left
+                newWidth = Math.max(cropState.minSize, cropState.boxStartWidth - deltaX);
+                newHeight = newWidth / aspect;
+                newX = cropState.boxStartX + cropState.boxStartWidth - newWidth;
+                newY = cropState.boxStartY + (cropState.boxStartHeight - newHeight) / 2;
+                break;
+            case 'mr': // Middle-right
+                newWidth = Math.max(cropState.minSize, cropState.boxStartWidth + deltaX);
+                newHeight = newWidth / aspect;
+                newY = cropState.boxStartY + (cropState.boxStartHeight - newHeight) / 2;
+                break;
+        }
+        
+        // Constrain to image bounds
+        const minX = cropState.imgOffsetX;
+        const maxX = cropState.imgOffsetX + cropState.imgWidth;
+        const minY = cropState.imgOffsetY;
+        const maxY = cropState.imgOffsetY + cropState.imgHeight;
+        
+        // Check bounds and adjust
+        if (newX < minX) {
+            const diff = minX - newX;
+            newX = minX;
+            if (handle.includes('l')) {
+                newWidth -= diff;
+                newHeight = newWidth / aspect;
+            }
+        }
+        if (newY < minY) {
+            const diff = minY - newY;
+            newY = minY;
+            if (handle.includes('t')) {
+                newHeight -= diff;
+                newWidth = newHeight * aspect;
+            }
+        }
+        if (newX + newWidth > maxX) {
+            newWidth = maxX - newX;
+            newHeight = newWidth / aspect;
+        }
+        if (newY + newHeight > maxY) {
+            newHeight = maxY - newY;
+            newWidth = newHeight * aspect;
+        }
+        
+        // Apply if valid
+        if (newWidth >= cropState.minSize && newHeight >= cropState.minSize) {
+            cropState.boxX = newX;
+            cropState.boxY = newY;
+            cropState.boxWidth = newWidth;
+            cropState.boxHeight = newHeight;
+            updateCropBoxDisplay();
+        }
+    }
+
+    function endInteraction() {
         cropState.isDragging = false;
+        cropState.isResizing = false;
+        cropState.resizeHandle = null;
         document.getElementById('crop-box').style.cursor = 'move';
     }
 
