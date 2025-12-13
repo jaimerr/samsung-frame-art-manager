@@ -99,9 +99,10 @@
         position: relative;
         background: #000;
         border-radius: var(--radius-md);
-        overflow: hidden;
+        overflow: visible;
         margin-bottom: 1.5rem;
         user-select: none;
+        padding: 60px;
     }
 
     .crop-image-wrapper {
@@ -109,8 +110,9 @@
         display: flex;
         justify-content: center;
         align-items: center;
-        min-height: 400px;
-        max-height: 500px;
+        min-height: 300px;
+        max-height: 400px;
+        overflow: visible;
     }
 
     .crop-image-wrapper img {
@@ -134,15 +136,17 @@
         position: absolute;
         border: 3px solid var(--accent-gold);
         cursor: move;
-        background: transparent;
+        background: #000;
         box-sizing: border-box;
         touch-action: none;
+        box-shadow: 0 0 0 3px rgba(201, 169, 98, 0.3);
     }
 
     .crop-box-inner {
         position: absolute;
         inset: 0;
         overflow: hidden;
+        background: #000;
     }
 
     .crop-box-inner img {
@@ -1489,18 +1493,9 @@
         const deltaX = pos.x - cropState.startX;
         const deltaY = pos.y - cropState.startY;
         
-        // Calculate new position
-        let newX = cropState.boxStartX + deltaX;
-        let newY = cropState.boxStartY + deltaY;
-        
-        // Constrain to image bounds
-        const minX = cropState.imgOffsetX;
-        const maxX = cropState.imgOffsetX + cropState.imgWidth - cropState.boxWidth;
-        const minY = cropState.imgOffsetY;
-        const maxY = cropState.imgOffsetY + cropState.imgHeight - cropState.boxHeight;
-        
-        cropState.boxX = Math.max(minX, Math.min(maxX, newX));
-        cropState.boxY = Math.max(minY, Math.min(maxY, newY));
+        // Calculate new position - no constraints, allow moving beyond image
+        cropState.boxX = cropState.boxStartX + deltaX;
+        cropState.boxY = cropState.boxStartY + deltaY;
         
         updateCropBoxDisplay();
     }
@@ -1566,39 +1561,10 @@
                 break;
         }
         
-        // Constrain to image bounds
-        const minX = cropState.imgOffsetX;
-        const maxX = cropState.imgOffsetX + cropState.imgWidth;
-        const minY = cropState.imgOffsetY;
-        const maxY = cropState.imgOffsetY + cropState.imgHeight;
+        // NO boundary constraints - allow crop box to extend beyond image
+        // Areas outside image will be filled with black
         
-        // Check bounds and adjust
-        if (newX < minX) {
-            const diff = minX - newX;
-            newX = minX;
-            if (handle.includes('l')) {
-                newWidth -= diff;
-                newHeight = newWidth / aspect;
-            }
-        }
-        if (newY < minY) {
-            const diff = minY - newY;
-            newY = minY;
-            if (handle.includes('t')) {
-                newHeight -= diff;
-                newWidth = newHeight * aspect;
-            }
-        }
-        if (newX + newWidth > maxX) {
-            newWidth = maxX - newX;
-            newHeight = newWidth / aspect;
-        }
-        if (newY + newHeight > maxY) {
-            newHeight = maxY - newY;
-            newWidth = newHeight * aspect;
-        }
-        
-        // Apply if valid
+        // Apply if valid (just check minimum size)
         if (newWidth >= cropState.minSize && newHeight >= cropState.minSize) {
             cropState.boxX = newX;
             cropState.boxY = newY;

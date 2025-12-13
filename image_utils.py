@@ -384,11 +384,13 @@ class ImageProcessor:
                       crop_box: tuple = None, portrait: bool = True) -> str:
         """
         Crop and resize image to exact Frame dimensions
+        Supports extended crop areas beyond image bounds (filled with black)
         
         Args:
             input_path: Path to input image
             output_path: Path for output (if None, creates _cropped suffix)
-            crop_box: Optional (left, top, right, bottom) crop coordinates as percentages (0-100)
+            crop_box: Optional (left, top, right, bottom) crop coordinates as percentages
+                      Can be negative or >100 to extend beyond image (black fill)
                       If None, uses center crop
             portrait: If True, crop to portrait 2160x3840, else landscape 3840x2160
         
@@ -405,8 +407,6 @@ class ImageProcessor:
             target_w, target_h = 2160, 3840
         else:
             target_w, target_h = 3840, 2160
-        
-        target_aspect = target_w / target_h
         
         try:
             with Image.open(input_path) as img:
@@ -426,35 +426,66 @@ class ImageProcessor:
                 orig_width, orig_height = img.size
                 
                 if crop_box:
-                    # Use provided crop box (percentages)
-                    left = int(orig_width * crop_box[0] / 100)
-                    top = int(orig_height * crop_box[1] / 100)
-                    right = int(orig_width * crop_box[2] / 100)
-                    bottom = int(orig_height * crop_box[3] / 100)
-                    img = img.crop((left, top, right, bottom))
-                    orig_width, orig_height = img.size
-                
-                orig_aspect = orig_width / orig_height
-                
-                # Calculate crop dimensions to match target aspect ratio
-                if orig_aspect > target_aspect:
-                    # Image is wider - crop width
-                    new_width = int(orig_height * target_aspect)
-                    new_height = orig_height
-                    left = (orig_width - new_width) // 2
-                    top = 0
+                    # Use provided crop box (percentages - can be negative or >100)
+                    left_pct, top_pct, right_pct, bottom_pct = crop_box
+                    
+                    # Calculate pixel coordinates (can be negative or beyond image)
+                    crop_left = orig_width * left_pct / 100
+                    crop_top = orig_height * top_pct / 100
+                    crop_right = orig_width * right_pct / 100
+                    crop_bottom = orig_height * bottom_pct / 100
+                    
+                    crop_width = crop_right - crop_left
+                    crop_height = crop_bottom - crop_top
+                    
+                    # Create a new black canvas for the crop area
+                    canvas = Image.new('RGB', (int(crop_width), int(crop_height)), (0, 0, 0))
+                    
+                    # Calculate where to paste the original image on the canvas
+                    paste_x = int(-crop_left) if crop_left < 0 else 0
+                    paste_y = int(-crop_top) if crop_top < 0 else 0
+                    
+                    # Calculate what portion of the original image to use
+                    src_left = int(max(0, crop_left))
+                    src_top = int(max(0, crop_top))
+                    src_right = int(min(orig_width, crop_right))
+                    src_bottom = int(min(orig_height, crop_bottom))
+                    
+                    # Only paste if there's overlap with the original image
+                    if src_right > src_left and src_bottom > src_top:
+                        # Crop the portion of original image that's within bounds
+                        img_portion = img.crop((src_left, src_top, src_right, src_bottom))
+                        
+                        # Adjust paste position if crop started within image
+                        if crop_left > 0:
+                            paste_x = 0
+                        if crop_top > 0:
+                            paste_y = 0
+                        
+                        canvas.paste(img_portion, (paste_x, paste_y))
+                    
+                    # Resize to target dimensions
+                    final = canvas.resize((target_w, target_h), Image.Resampling.LANCZOS)
                 else:
-                    # Image is taller - crop height
-                    new_width = orig_width
-                    new_height = int(orig_width / target_aspect)
-                    left = 0
-                    top = (orig_height - new_height) // 2
-                
-                # Crop to target aspect ratio
-                cropped = img.crop((left, top, left + new_width, top + new_height))
-                
-                # Resize to exact target dimensions
-                final = cropped.resize((target_w, target_h), Image.Resampling.LANCZOS)
+                    # No crop box - use center crop to target aspect ratio
+                    target_aspect = target_w / target_h
+                    orig_aspect = orig_width / orig_height
+                    
+                    if orig_aspect > target_aspect:
+                        # Image is wider - crop width
+                        new_width = int(orig_height * target_aspect)
+                        new_height = orig_height
+                        left = (orig_width - new_width) // 2
+                        top = 0
+                    else:
+                        # Image is taller - crop height
+                        new_width = orig_width
+                        new_height = int(orig_width / target_aspect)
+                        left = 0
+                        top = (orig_height - new_height) // 2
+                    
+                    cropped = img.crop((left, top, left + new_width, top + new_height))
+                    final = cropped.resize((target_w, target_h), Image.Resampling.LANCZOS)
                 
                 # Save
                 final.save(output_path, "JPEG", quality=self.quality, 
