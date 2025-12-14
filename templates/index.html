@@ -2055,13 +2055,23 @@
             
             showToast(`Moved ${filenames.length} images`, 'success');
             closeModal('assign-collection-modal');
+            
+            // Hide moved images from current view immediately
+            if (currentCollection !== 'all') {
+                for (const filename of filenames) {
+                    const card = document.querySelector(`[data-filename="${filename}"]`);
+                    if (card) {
+                        card.style.opacity = '0';
+                        card.style.transform = 'scale(0.9)';
+                        setTimeout(() => {
+                            card.style.display = 'none';
+                        }, 300);
+                    }
+                }
+            }
+            
             clearSelection();
             loadCollections();
-            
-            // Re-filter if needed
-            if (currentCollection !== 'all') {
-                filterByCollection(currentCollection);
-            }
         } catch (e) {
             showToast(`Failed: ${e.message}`, 'error');
         }
