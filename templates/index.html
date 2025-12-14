@@ -534,6 +534,28 @@
         animation: fadeIn var(--transition-slow) ease;
         cursor: pointer;
     }
+    
+    /* Golden frame for correctly sized images (2160x3840) */
+    .image-card.frame-ready {
+        border: 3px solid #D4AF37;
+        box-shadow: 0 0 12px rgba(212, 175, 55, 0.4), inset 0 0 0 1px rgba(212, 175, 55, 0.3);
+    }
+    
+    .image-card.frame-ready::before {
+        content: '✓ Ready';
+        position: absolute;
+        top: 8px;
+        left: 8px;
+        background: linear-gradient(135deg, #D4AF37, #FFD700);
+        color: #1a1a1a;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        font-weight: 700;
+        z-index: 10;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
 
     @keyframes fadeIn {
         from {
@@ -891,7 +913,7 @@
 <div class="gallery-grid" id="gallery-grid">
     {% if images %}
         {% for image in images %}
-        <div class="image-card" data-filename="{{ image.filename }}" onclick="toggleImageSelection(event, '{{ image.filename }}')">
+        <div class="image-card{% if image.width == 2160 and image.height == 3840 %} frame-ready{% endif %}" data-filename="{{ image.filename }}" onclick="toggleImageSelection(event, '{{ image.filename }}')">
             <div class="image-preview">
                 <div class="select-checkbox" onclick="event.stopPropagation(); toggleImageSelection(event, '{{ image.filename }}')"></div>
                 <img src="/thumbnails/{{ image.filename.rsplit('.', 1)[0] }}_thumb.jpg" 
@@ -1171,11 +1193,12 @@
         if (empty) empty.remove();
 
         const card = document.createElement('div');
-        card.className = 'image-card';
+        const meta = result.metadata;
+        const isFrameReady = meta.width === 2160 && meta.height === 3840;
+        card.className = 'image-card' + (isFrameReady ? ' frame-ready' : '');
         card.dataset.filename = result.filename;
         
         const thumbName = result.filename.replace(/\.[^/.]+$/, '') + '_thumb.jpg';
-        const meta = result.metadata;
         
         card.onclick = (e) => toggleImageSelection(e, result.filename);
         card.innerHTML = `
@@ -1503,7 +1526,7 @@
             }
             
             grid.innerHTML = images.map(img => `
-                <div class="image-card" data-filename="${img.filename}" onclick="toggleImageSelection(event, '${img.filename}')">
+                <div class="image-card${img.width === 2160 && img.height === 3840 ? ' frame-ready' : ''}" data-filename="${img.filename}" onclick="toggleImageSelection(event, '${img.filename}')">
                     <div class="image-preview">
                         <div class="select-checkbox" onclick="event.stopPropagation(); toggleImageSelection(event, '${img.filename}')"></div>
                         <img src="/thumbnails/${img.filename.replace(/\.[^/.]+$/, '')}_thumb.jpg" 
@@ -2017,6 +2040,9 @@
         let html = '';
         
         for (const coll of collections) {
+            // Skip the default "All Images" collection
+            if (coll.id === 'default') continue;
+            
             html += `
                 <div class="toggle-wrapper" style="margin-bottom: 0.5rem; cursor: pointer;" 
                      onclick="batchMoveToCollection('${coll.id}')">
