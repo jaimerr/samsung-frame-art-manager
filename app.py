@@ -791,6 +791,13 @@ def get_collection_images(collection_id):
     collections_data = load_collections()
     assignments = collections_data.get('image_assignments', {})
     
+    if collection_id == 'unassigned':
+        # Get all images not assigned to any collection
+        all_images = get_all_images()
+        assigned_files = set(assignments.keys())
+        images = [img for img in all_images if img['filename'] not in assigned_files]
+        return jsonify({"images": images, "collection_id": collection_id})
+    
     # Get filenames in this collection
     collection_files = [f for f, c in assignments.items() if c == collection_id]
     
@@ -839,6 +846,86 @@ def remove_from_collection(filename):
         save_collections(collections_data)
     
     return jsonify({"success": True})
+
+
+@app.route('/api/images/batch/collection', methods=['POST'])
+def batch_assign_to_collection():
+    """Assign multiple images to a collection"""
+    data = request.get_json()
+    filenames = data.get('filenames', [])
+    collection_id = data.get('collection_id')
+    
+    if not filenames:
+        return jsonify({"error": "No files specified"}), 400
+    
+    if not collection_id:
+        return jsonify({"error": "collection_id required"}), 400
+    
+    collections_data = load_collections()
+    
+    if collection_id != 'unassigned' and collection_id not in collections_data['collections']:
+        return jsonify({"error": "Collection not found"}), 404
+    
+    moved = 0
+    for filename in filenames:
+        filepath = os.path.join(UPLOAD_FOLDER, filename)
+        if os.path.exists(filepath):
+            if collection_id == 'unassigned':
+                # Remove from collection
+                if filename in collections_data['image_assignments']:
+                    del collections_data['image_assignments'][filename]
+            else:
+                collections_data['image_assignments'][filename] = collection_id
+            moved += 1
+    
+    save_collections(collections_data)
+    
+    return jsonify({"success": True, "moved": moved})
+
+
+@app.route('/api/images/batch/delete', methods=['POST'])
+def batch_delete_images():
+    """Delete multiple images"""
+    data = request.get_json()
+    filenames = data.get('filenames', [])
+    
+    if not filenames:
+        return jsonify({"error": "No files specified"}), 400
+    
+    deleted = 0
+    collections_data = load_collections()
+    
+    for filename in filenames:
+        filepath = os.path.join(UPLOAD_FOLDER, filename)
+        
+        try:
+            # Delete original
+            if os.path.exists(filepath):
+                os.remove(filepath)
+            
+            # Delete processed version if exists
+            processed_path = os.path.join(PROCESSED_FOLDER, 
+                                          f"{Path(filename).stem}_processed.jpg")
+            if os.path.exists(processed_path):
+                os.remove(processed_path)
+            
+            # Delete thumbnail if exists
+            thumb_path = os.path.join(THUMBNAILS_FOLDER, 
+                                      f"{Path(filename).stem}_thumb.jpg")
+            if os.path.exists(thumb_path):
+                os.remove(thumb_path)
+            
+            # Remove from collections
+            if filename in collections_data['image_assignments']:
+                del collections_data['image_assignments'][filename]
+            
+            deleted += 1
+        except Exception as e:
+            logger.error(f"Failed to delete {filename}: {e}")
+    
+    save_collections(collections_data)
+    
+    return jsonify({"success": True, "deleted": deleted})
 
 
 @app.route('/api/tv/art-list')

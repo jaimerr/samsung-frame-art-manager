@@ -1,0 +1,27 @@
+{
+  "collections": {
+    "default": {
+      "name": "All Images",
+      "images": []
+    },
+    "prueba": {
+      "name": "Prueba"
+    },
+    "original": {
+      "name": "Original"
+    },
+    "cova_y_jaime_1": {
+      "name": "Cova y Jaime 1"
+    }
+  },
+  "image_assignments": {
+    "2fa812d1cfe04e0a8667bac2fb12ba9a_portrait_2f40d3.jpg": "cova_y_jaime_1",
+    "5e72eeeb664b4a119768ac6192a1c642_portrait.jpg": "cova_y_jaime_1",
+    "09e6ba850ffa492a837b6cc9c697ab9e.jpg": "original",
+    "c0a57b54e4314f8496dab435671fd9c8.jpg": "original",
+    "fe7a29f543f640c2bb3745972dcf2b74.jpg": "original",
+    "8090f353a080445b947693c516e2ad10.jpg": "original",
+    "13e850bf93cb44ae90314d1def535e6a.jpg": "original",
+    "9f42718e1bea46f395000edc6b5ad794.jpg": "original"
+  }
+}

@@ -117,6 +117,90 @@
         color: #000;
     }
 
+    /* Multi-select mode */
+    .image-card.selectable {
+        cursor: pointer;
+    }
+
+    .image-card.selected {
+        outline: 3px solid var(--accent-gold);
+        outline-offset: -3px;
+    }
+
+    .image-card.selected::after {
+        content: '✓';
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        width: 28px;
+        height: 28px;
+        background: var(--accent-gold);
+        color: #000;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 14px;
+        z-index: 10;
+    }
+
+    .select-checkbox {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        width: 24px;
+        height: 24px;
+        background: rgba(0,0,0,0.5);
+        border: 2px solid #fff;
+        border-radius: 50%;
+        cursor: pointer;
+        z-index: 5;
+        display: none;
+    }
+
+    .image-card:hover .select-checkbox,
+    .select-mode .select-checkbox {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .image-card.selected .select-checkbox {
+        background: var(--accent-gold);
+        border-color: var(--accent-gold);
+    }
+
+    /* Batch action bar */
+    .batch-action-bar {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: var(--bg-card);
+        border-top: 1px solid var(--border-subtle);
+        padding: 1rem 2rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        z-index: 100;
+        transform: translateY(100%);
+        transition: transform var(--transition-normal);
+    }
+
+    .batch-action-bar.visible {
+        transform: translateY(0);
+    }
+
+    .batch-info {
+        font-weight: 500;
+    }
+
+    .batch-actions {
+        display: flex;
+        gap: 0.75rem;
+    }
+
     /* Upload Zone */
     .upload-zone {
         position: relative;
@@ -441,12 +525,14 @@
 
     /* Image Card */
     .image-card {
+        position: relative;
         background: var(--bg-card);
         border: 1px solid var(--border-subtle);
         border-radius: var(--radius-lg);
         overflow: hidden;
         transition: all var(--transition-normal);
         animation: fadeIn var(--transition-slow) ease;
+        cursor: pointer;
     }
 
     @keyframes fadeIn {
@@ -805,20 +891,21 @@
 <div class="gallery-grid" id="gallery-grid">
     {% if images %}
         {% for image in images %}
-        <div class="image-card" data-filename="{{ image.filename }}">
+        <div class="image-card" data-filename="{{ image.filename }}" onclick="toggleImageSelection(event, '{{ image.filename }}')">
             <div class="image-preview">
+                <div class="select-checkbox" onclick="event.stopPropagation(); toggleImageSelection(event, '{{ image.filename }}')"></div>
                 <img src="/thumbnails/{{ image.filename.rsplit('.', 1)[0] }}_thumb.jpg" 
                      alt="Uploaded image"
                      onerror="this.src='/uploads/{{ image.filename }}'">
                 <div class="image-overlay">
                     <div class="image-actions">
-                        <button class="image-action-btn btn-crop" onclick="showCropModal('{{ image.filename }}')" title="Crop for Frame">
+                        <button class="image-action-btn btn-crop" onclick="event.stopPropagation(); showCropModal('{{ image.filename }}')" title="Crop for Frame">
                             ✂ Crop
                         </button>
-                        <button class="image-action-btn btn-view" onclick="showAssignCollectionModal('{{ image.filename }}')" title="Move to folder">
+                        <button class="image-action-btn btn-view" onclick="event.stopPropagation(); showAssignCollectionModal('{{ image.filename }}')" title="Move to folder">
                             📁
                         </button>
-                        <button class="image-action-btn btn-delete-img" onclick="deleteImage('{{ image.filename }}')" title="Delete">
+                        <button class="image-action-btn btn-delete-img" onclick="event.stopPropagation(); deleteImage('{{ image.filename }}')" title="Delete">
                             🗑
                         </button>
                     </div>
@@ -869,51 +956,6 @@
     </div>
 </div>
 
-<!-- Send to TV Modal -->
-<div class="modal-overlay" id="send-modal">
-    <div class="modal">
-        <div class="modal-header">
-            <h3 class="modal-title">Send to Samsung Frame</h3>
-            <button class="modal-close" onclick="closeModal('send-modal')">&times;</button>
-        </div>
-        <div class="modal-body">
-            <div class="form-group">
-                <label class="form-label">Select Matte Style</label>
-                <div class="matte-grid" id="matte-grid">
-                    <!-- Populated by JS -->
-                </div>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Preview</label>
-                <div class="detail-preview">
-                    <img id="send-preview" src="" alt="Send preview">
-                </div>
-            </div>
-        </div>
-        <div class="modal-footer">
-            <button class="btn btn-secondary" onclick="closeModal('send-modal')">Cancel</button>
-            <button class="btn btn-primary" id="send-btn" onclick="sendToTV()">
-                <span class="loading" style="display:none" id="send-loading"></span>
-                <span id="send-btn-text">Send to TV</span>
-            </button>
-        </div>
-    </div>
-</div>
-
-<!-- TV Art Modal -->
-<div class="modal-overlay" id="tv-art-modal">
-    <div class="modal" style="max-width: 900px;">
-        <div class="modal-header">
-            <h3 class="modal-title">Art on Your Samsung Frame</h3>
-            <button class="modal-close" onclick="closeModal('tv-art-modal')">&times;</button>
-        </div>
-        <div class="modal-body">
-            <div class="tv-art-grid" id="tv-art-grid">
-                <div class="loading" style="margin: 2rem auto;"></div>
-            </div>
-        </div>
-    </div>
-</div>
 
 <!-- Create Collection Modal -->
 <div class="modal-overlay" id="create-collection-modal">
@@ -1020,6 +1062,21 @@
         </div>
     </div>
 </div>
+<!-- Batch Action Bar -->
+<div class="batch-action-bar" id="batch-action-bar">
+    <div class="batch-info">
+        <span id="selected-count">0</span> images selected
+        <button class="btn btn-ghost btn-sm" onclick="clearSelection()">Clear</button>
+    </div>
+    <div class="batch-actions">
+        <button class="btn btn-secondary" onclick="showBatchMoveModal()">
+            📁 Move to Folder
+        </button>
+        <button class="btn btn-danger" onclick="batchDelete()">
+            🗑 Delete Selected
+        </button>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -1031,31 +1088,8 @@
     let cropData = null;
     let currentCollection = 'all';
     let collections = [];
+    let selectedImages = new Set();
 
-    // Load mattes
-    async function loadMattes() {
-        try {
-            mattes = await api('/api/tv/mattes');
-            renderMatteOptions();
-        } catch (e) {
-            console.error('Failed to load mattes:', e);
-        }
-    }
-
-    function renderMatteOptions() {
-        const grid = document.getElementById('matte-grid');
-        grid.innerHTML = mattes.map(m => `
-            <div class="matte-option ${m.id === selectedMatte ? 'selected' : ''}" 
-                 onclick="selectMatte('${m.id}')">
-                <div class="matte-name">${m.name}</div>
-            </div>
-        `).join('');
-    }
-
-    function selectMatte(id) {
-        selectedMatte = id;
-        renderMatteOptions();
-    }
 
     // Upload handling
     const uploadZone = document.getElementById('upload-zone');
@@ -1143,20 +1177,22 @@
         const thumbName = result.filename.replace(/\.[^/.]+$/, '') + '_thumb.jpg';
         const meta = result.metadata;
         
+        card.onclick = (e) => toggleImageSelection(e, result.filename);
         card.innerHTML = `
             <div class="image-preview">
+                <div class="select-checkbox" onclick="event.stopPropagation(); toggleImageSelection(event, '${result.filename}')"></div>
                 <img src="/thumbnails/${thumbName}" 
                      alt="Uploaded image"
                      onerror="this.src='/uploads/${result.filename}'">
                 <div class="image-overlay">
                     <div class="image-actions">
-                        <button class="image-action-btn btn-crop" onclick="showCropModal('${result.filename}')" title="Crop for Frame">
+                        <button class="image-action-btn btn-crop" onclick="event.stopPropagation(); showCropModal('${result.filename}')" title="Crop for Frame">
                             ✂ Crop
                         </button>
-                        <button class="image-action-btn btn-view" onclick="showAssignCollectionModal('${result.filename}')" title="Move to folder">
+                        <button class="image-action-btn btn-view" onclick="event.stopPropagation(); showAssignCollectionModal('${result.filename}')" title="Move to folder">
                             📁
                         </button>
-                        <button class="image-action-btn btn-delete-img" onclick="deleteImage('${result.filename}')" title="Delete">
+                        <button class="image-action-btn btn-delete-img" onclick="event.stopPropagation(); deleteImage('${result.filename}')" title="Delete">
                             🗑
                         </button>
                     </div>
@@ -1223,65 +1259,6 @@
         showModal('detail-modal');
     }
 
-    function showSendModal(filename) {
-        currentFilename = filename;
-        selectedMatte = 'none';
-        renderMatteOptions();
-        
-        // Use processed version if available
-        const baseName = filename.replace(/\.[^/.]+$/, '');
-        document.getElementById('send-preview').src = `/processed/${baseName}_processed.jpg`;
-        document.getElementById('send-preview').onerror = function() {
-            this.src = `/uploads/${filename}`;
-        };
-        
-        showModal('send-modal');
-    }
-
-    function sendCurrentImage() {
-        closeModal('detail-modal');
-        showSendModal(currentFilename);
-    }
-
-    async function sendToTV() {
-        if (!currentFilename) return;
-        
-        const btn = document.getElementById('send-btn');
-        const loading = document.getElementById('send-loading');
-        const text = document.getElementById('send-btn-text');
-        
-        btn.disabled = true;
-        loading.style.display = 'inline-block';
-        text.textContent = 'Sending...';
-        
-        try {
-            const result = await api('/api/tv/upload', {
-                method: 'POST',
-                body: JSON.stringify({
-                    filename: currentFilename,
-                    matte: selectedMatte
-                })
-            });
-            
-            if (result.success) {
-                showToast('Image sent to Samsung Frame!', 'success');
-                closeModal('send-modal');
-            } else {
-                throw new Error(result.error);
-            }
-        } catch (e) {
-            // Check if it's a 2022+ TV API issue
-            if (e.message.includes('USB') || e.message.includes('not supported')) {
-                showToast('Direct upload not supported on 2022+ TVs. Use "Export to USB" instead.', 'error');
-            } else {
-                showToast(`Failed to send: ${e.message}`, 'error');
-            }
-        } finally {
-            btn.disabled = false;
-            loading.style.display = 'none';
-            text.textContent = 'Send to TV';
-        }
-    }
 
     // Collection management functions
     async function loadCollections() {
@@ -1338,6 +1315,9 @@
             chip.classList.toggle('active', chip.dataset.collection === collectionId);
         });
         
+        // Clear selection when changing collections
+        clearSelection();
+        
         // Filter gallery
         if (collectionId === 'all') {
             document.querySelectorAll('.image-card').forEach(card => {
@@ -1353,11 +1333,8 @@
                     card.style.display = inCollection ? '' : 'none';
                 });
             } catch (e) {
-                // For 'unassigned', show images not in any collection
-                if (collectionId === 'unassigned') {
-                    const allCollResult = await api('/api/collections');
-                    // Would need backend support - for now show all
-                }
+                console.error('Error filtering:', e);
+                showToast('Error loading folder', 'error');
             }
         }
     }
@@ -1526,20 +1503,21 @@
             }
             
             grid.innerHTML = images.map(img => `
-                <div class="image-card" data-filename="${img.filename}">
+                <div class="image-card" data-filename="${img.filename}" onclick="toggleImageSelection(event, '${img.filename}')">
                     <div class="image-preview">
+                        <div class="select-checkbox" onclick="event.stopPropagation(); toggleImageSelection(event, '${img.filename}')"></div>
                         <img src="/thumbnails/${img.filename.replace(/\.[^/.]+$/, '')}_thumb.jpg" 
                              alt="Uploaded image"
                              onerror="this.src='/uploads/${img.filename}'">
                         <div class="image-overlay">
                             <div class="image-actions">
-                                <button class="image-action-btn btn-crop" onclick="showCropModal('${img.filename}')" title="Crop for Frame">
+                                <button class="image-action-btn btn-crop" onclick="event.stopPropagation(); showCropModal('${img.filename}')" title="Crop for Frame">
                                     ✂ Crop
                                 </button>
-                                <button class="image-action-btn btn-view" onclick="showAssignCollectionModal('${img.filename}')" title="Move to folder">
+                                <button class="image-action-btn btn-view" onclick="event.stopPropagation(); showAssignCollectionModal('${img.filename}')" title="Move to folder">
                                     📁
                                 </button>
-                                <button class="image-action-btn btn-delete-img" onclick="deleteImage('${img.filename}')" title="Delete">
+                                <button class="image-action-btn btn-delete-img" onclick="event.stopPropagation(); deleteImage('${img.filename}')" title="Delete">
                                     🗑
                                 </button>
                             </div>
@@ -1556,83 +1534,15 @@
                 </div>
             `).join('');
             
+            // Reload collections to update counts
+            loadCollections();
+            
             showToast('Gallery refreshed', 'success');
         } catch (e) {
             showToast('Failed to refresh gallery', 'error');
         }
     }
 
-    async function showTVArt() {
-        showModal('tv-art-modal');
-        const grid = document.getElementById('tv-art-grid');
-        grid.innerHTML = '<div class="loading" style="margin: 2rem auto;"></div>';
-        
-        try {
-            const result = await api('/api/tv/art-list');
-            
-            if (!result.art || result.art.length === 0) {
-                grid.innerHTML = `
-                    <div class="empty-state" style="grid-column: 1/-1;">
-                        <div class="empty-state-icon">📺</div>
-                        <h3 class="empty-state-title">No art on TV</h3>
-                        <p class="empty-state-text">Upload images to see them here</p>
-                    </div>
-                `;
-                return;
-            }
-            
-            grid.innerHTML = result.art.map(art => `
-                <div class="tv-art-card" data-content-id="${art.content_id}">
-                    <div class="tv-art-actions">
-                        <button class="btn btn-sm btn-primary" onclick="selectTVArt('${art.content_id}')">
-                            Display
-                        </button>
-                        <button class="btn btn-sm btn-danger" onclick="deleteTVArt('${art.content_id}')">
-                            🗑
-                        </button>
-                    </div>
-                </div>
-            `).join('');
-        } catch (e) {
-            grid.innerHTML = `
-                <div class="empty-state" style="grid-column: 1/-1;">
-                    <div class="empty-state-icon">⚠️</div>
-                    <h3 class="empty-state-title">Could not load TV art</h3>
-                    <p class="empty-state-text">${e.message}</p>
-                </div>
-            `;
-        }
-    }
-
-    async function selectTVArt(contentId) {
-        try {
-            await api('/api/tv/select', {
-                method: 'POST',
-                body: JSON.stringify({ content_id: contentId })
-            });
-            showToast('Art selected on TV!', 'success');
-        } catch (e) {
-            showToast(`Failed to select art: ${e.message}`, 'error');
-        }
-    }
-
-    async function deleteTVArt(contentId) {
-        if (!confirm('Delete this art from your TV?')) return;
-        
-        try {
-            await api('/api/tv/delete', {
-                method: 'DELETE',
-                body: JSON.stringify({ content_id: contentId })
-            });
-            
-            const card = document.querySelector(`[data-content-id="${contentId}"]`);
-            if (card) card.remove();
-            
-            showToast('Art deleted from TV', 'success');
-        } catch (e) {
-            showToast(`Failed to delete: ${e.message}`, 'error');
-        }
-    }
 
     function formatBytes(bytes) {
         if (bytes === 0) return '0 Bytes';
@@ -2058,8 +1968,142 @@
     // Initialize drag handlers
     initCropDrag();
 
+    // Multi-select functions
+    function toggleImageSelection(event, filename) {
+        // Don't select if clicking on action buttons
+        if (event.target.closest('.image-actions')) return;
+        
+        const card = document.querySelector(`[data-filename="${filename}"]`);
+        
+        if (selectedImages.has(filename)) {
+            selectedImages.delete(filename);
+            card.classList.remove('selected');
+        } else {
+            selectedImages.add(filename);
+            card.classList.add('selected');
+        }
+        
+        updateBatchActionBar();
+    }
+
+    function updateBatchActionBar() {
+        const bar = document.getElementById('batch-action-bar');
+        const count = document.getElementById('selected-count');
+        
+        count.textContent = selectedImages.size;
+        
+        if (selectedImages.size > 0) {
+            bar.classList.add('visible');
+        } else {
+            bar.classList.remove('visible');
+        }
+    }
+
+    function clearSelection() {
+        selectedImages.clear();
+        document.querySelectorAll('.image-card.selected').forEach(card => {
+            card.classList.remove('selected');
+        });
+        updateBatchActionBar();
+    }
+
+    function showBatchMoveModal() {
+        if (selectedImages.size === 0) {
+            showToast('No images selected', 'error');
+            return;
+        }
+        
+        const listDiv = document.getElementById('collection-list-assign');
+        let html = '';
+        
+        for (const coll of collections) {
+            html += `
+                <div class="toggle-wrapper" style="margin-bottom: 0.5rem; cursor: pointer;" 
+                     onclick="batchMoveToCollection('${coll.id}')">
+                    <div>
+                        <div class="toggle-label">${coll.name}</div>
+                        <div class="toggle-description">${coll.count} images</div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        html += `
+            <div class="toggle-wrapper" style="margin-top: 1rem; cursor: pointer;" 
+                 onclick="batchMoveToCollection('unassigned')">
+                <div>
+                    <div class="toggle-label" style="color: var(--text-muted);">Remove from folder (Unsorted)</div>
+                </div>
+            </div>
+        `;
+        
+        listDiv.innerHTML = html;
+        showModal('assign-collection-modal');
+    }
+
+    async function batchMoveToCollection(collectionId) {
+        try {
+            const filenames = Array.from(selectedImages);
+            
+            await api('/api/images/batch/collection', {
+                method: 'POST',
+                body: JSON.stringify({
+                    filenames,
+                    collection_id: collectionId
+                })
+            });
+            
+            showToast(`Moved ${filenames.length} images`, 'success');
+            closeModal('assign-collection-modal');
+            clearSelection();
+            loadCollections();
+            
+            // Re-filter if needed
+            if (currentCollection !== 'all') {
+                filterByCollection(currentCollection);
+            }
+        } catch (e) {
+            showToast(`Failed: ${e.message}`, 'error');
+        }
+    }
+
+    async function batchDelete() {
+        if (selectedImages.size === 0) {
+            showToast('No images selected', 'error');
+            return;
+        }
+        
+        if (!confirm(`Delete ${selectedImages.size} images? This cannot be undone.`)) {
+            return;
+        }
+        
+        try {
+            const filenames = Array.from(selectedImages);
+            
+            const result = await api('/api/images/batch/delete', {
+                method: 'POST',
+                body: JSON.stringify({ filenames })
+            });
+            
+            // Remove cards from DOM
+            for (const filename of filenames) {
+                const card = document.querySelector(`[data-filename="${filename}"]`);
+                if (card) {
+                    card.style.opacity = '0';
+                    card.style.transform = 'scale(0.9)';
+                    setTimeout(() => card.remove(), 300);
+                }
+            }
+            
+            showToast(`Deleted ${result.deleted} images`, 'success');
+            clearSelection();
+            loadCollections();
+        } catch (e) {
+            showToast(`Delete failed: ${e.message}`, 'error');
+        }
+    }
+
     // Initialize
-    loadMattes();
     loadCollections();
 
     // Close modals on escape key
