@@ -9,7 +9,7 @@
         display: flex;
         align-items: flex-start;
         justify-content: space-between;
-        margin-bottom: 2rem;
+        margin-bottom: 1rem;
         gap: 1rem;
         flex-wrap: wrap;
     }
@@ -18,6 +18,103 @@
         display: flex;
         gap: 0.75rem;
         flex-wrap: wrap;
+    }
+
+    /* Collections Sidebar/Bar */
+    .collections-bar {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1.5rem;
+        padding: 1rem;
+        background: var(--bg-secondary);
+        border-radius: var(--radius-lg);
+        border: 1px solid var(--border-subtle);
+        overflow-x: auto;
+        align-items: center;
+    }
+
+    .collections-bar-label {
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        font-weight: 500;
+        white-space: nowrap;
+        margin-right: 0.5rem;
+    }
+
+    .collection-chip {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 14px;
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border-subtle);
+        border-radius: 20px;
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition: all var(--transition-fast);
+        white-space: nowrap;
+    }
+
+    .collection-chip:hover {
+        border-color: var(--accent-gold);
+        background: rgba(201, 169, 98, 0.1);
+    }
+
+    .collection-chip.active {
+        background: var(--accent-gold);
+        color: #000;
+        border-color: var(--accent-gold);
+    }
+
+    .collection-chip .count {
+        background: rgba(0,0,0,0.2);
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 0.75rem;
+    }
+
+    .collection-chip.active .count {
+        background: rgba(0,0,0,0.3);
+    }
+
+    .add-collection-btn {
+        padding: 8px 12px;
+        background: transparent;
+        border: 1px dashed var(--border-light);
+        border-radius: 20px;
+        color: var(--text-muted);
+        cursor: pointer;
+        font-size: 0.85rem;
+        transition: all var(--transition-fast);
+    }
+
+    .add-collection-btn:hover {
+        border-color: var(--accent-gold);
+        color: var(--accent-gold);
+    }
+
+    /* Collection dropdown on image cards */
+    .collection-dropdown {
+        position: absolute;
+        top: 8px;
+        left: 8px;
+        z-index: 5;
+    }
+
+    .collection-badge {
+        padding: 4px 10px;
+        background: rgba(0,0,0,0.7);
+        backdrop-filter: blur(4px);
+        border-radius: var(--radius-sm);
+        font-size: 0.7rem;
+        color: var(--accent-gold);
+        cursor: pointer;
+        transition: all var(--transition-fast);
+    }
+
+    .collection-badge:hover {
+        background: var(--accent-gold);
+        color: #000;
     }
 
     /* Upload Zone */
@@ -668,19 +765,20 @@
         <button class="btn btn-secondary" onclick="refreshGallery()">
             ↻ Refresh
         </button>
-        <button class="btn btn-secondary" onclick="exportForUSB()">
-            💾 Export to USB
+        <button class="btn btn-primary" onclick="exportCurrentCollection()">
+            💾 Export Folder to USB
         </button>
-        {% if tv_connected %}
-        <button class="btn btn-primary" onclick="showTVArt()">
-            📺 View TV Art
-        </button>
-        {% else %}
-        <a href="/settings" class="btn btn-primary">
-            ⚙ Connect TV
-        </a>
-        {% endif %}
     </div>
+</div>
+
+<!-- Collections Bar -->
+<div class="collections-bar" id="collections-bar">
+    <span class="collections-bar-label">📁 Collections:</span>
+    <div class="collection-chip active" data-collection="all" onclick="filterByCollection('all')">
+        All <span class="count" id="count-all">0</span>
+    </div>
+    <!-- More collections loaded dynamically -->
+    <button class="add-collection-btn" onclick="showCreateCollectionModal()">+ New Folder</button>
 </div>
 
 <div class="upload-zone" id="upload-zone">
@@ -717,8 +815,8 @@
                         <button class="image-action-btn btn-crop" onclick="showCropModal('{{ image.filename }}')" title="Crop for Frame">
                             ✂ Crop
                         </button>
-                        <button class="image-action-btn btn-send" onclick="showSendModal('{{ image.filename }}')" {% if not tv_connected %}disabled{% endif %}>
-                            📺 Send
+                        <button class="image-action-btn btn-view" onclick="showAssignCollectionModal('{{ image.filename }}')" title="Move to folder">
+                            📁
                         </button>
                         <button class="image-action-btn btn-delete-img" onclick="deleteImage('{{ image.filename }}')" title="Delete">
                             🗑
@@ -817,6 +915,41 @@
     </div>
 </div>
 
+<!-- Create Collection Modal -->
+<div class="modal-overlay" id="create-collection-modal">
+    <div class="modal" style="max-width: 400px;">
+        <div class="modal-header">
+            <h3 class="modal-title">Create New Folder</h3>
+            <button class="modal-close" onclick="closeModal('create-collection-modal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Folder Name</label>
+                <input type="text" class="form-input" id="new-collection-name" placeholder="e.g., Living Room, Nature, Family">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('create-collection-modal')">Cancel</button>
+            <button class="btn btn-primary" onclick="createCollection()">Create Folder</button>
+        </div>
+    </div>
+</div>
+
+<!-- Assign to Collection Modal -->
+<div class="modal-overlay" id="assign-collection-modal">
+    <div class="modal" style="max-width: 400px;">
+        <div class="modal-header">
+            <h3 class="modal-title">Move to Folder</h3>
+            <button class="modal-close" onclick="closeModal('assign-collection-modal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div id="collection-list-assign">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Crop Modal -->
 <div class="modal-overlay crop-modal" id="crop-modal">
     <div class="modal">
@@ -896,6 +1029,8 @@
     let mattes = [];
     let cropPortrait = true;
     let cropData = null;
+    let currentCollection = 'all';
+    let collections = [];
 
     // Load mattes
     async function loadMattes() {
@@ -1018,8 +1153,8 @@
                         <button class="image-action-btn btn-crop" onclick="showCropModal('${result.filename}')" title="Crop for Frame">
                             ✂ Crop
                         </button>
-                        <button class="image-action-btn btn-send" onclick="showSendModal('${result.filename}')">
-                            📺 Send
+                        <button class="image-action-btn btn-view" onclick="showAssignCollectionModal('${result.filename}')" title="Move to folder">
+                            📁
                         </button>
                         <button class="image-action-btn btn-delete-img" onclick="deleteImage('${result.filename}')" title="Delete">
                             🗑
@@ -1148,10 +1283,184 @@
         }
     }
 
-    async function exportForUSB() {
-        // Get all image filenames from gallery
-        const cards = document.querySelectorAll('.image-card');
-        const filenames = Array.from(cards).map(card => card.dataset.filename);
+    // Collection management functions
+    async function loadCollections() {
+        try {
+            const result = await api('/api/collections');
+            collections = result.collections;
+            renderCollectionsBar(result);
+        } catch (e) {
+            console.error('Failed to load collections:', e);
+        }
+    }
+
+    function renderCollectionsBar(data) {
+        const bar = document.getElementById('collections-bar');
+        const allImages = document.querySelectorAll('.image-card').length;
+        
+        let html = `
+            <span class="collections-bar-label">📁 Folders:</span>
+            <div class="collection-chip ${currentCollection === 'all' ? 'active' : ''}" 
+                 data-collection="all" onclick="filterByCollection('all')">
+                All <span class="count">${allImages}</span>
+            </div>
+        `;
+        
+        for (const coll of data.collections) {
+            if (coll.id === 'default') continue;
+            html += `
+                <div class="collection-chip ${currentCollection === coll.id ? 'active' : ''}" 
+                     data-collection="${coll.id}" onclick="filterByCollection('${coll.id}')">
+                    ${coll.name} <span class="count">${coll.count}</span>
+                </div>
+            `;
+        }
+        
+        if (data.unassigned_count > 0) {
+            html += `
+                <div class="collection-chip ${currentCollection === 'unassigned' ? 'active' : ''}" 
+                     data-collection="unassigned" onclick="filterByCollection('unassigned')">
+                    Unsorted <span class="count">${data.unassigned_count}</span>
+                </div>
+            `;
+        }
+        
+        html += `<button class="add-collection-btn" onclick="showCreateCollectionModal()">+ New Folder</button>`;
+        
+        bar.innerHTML = html;
+    }
+
+    async function filterByCollection(collectionId) {
+        currentCollection = collectionId;
+        
+        // Update active state
+        document.querySelectorAll('.collection-chip').forEach(chip => {
+            chip.classList.toggle('active', chip.dataset.collection === collectionId);
+        });
+        
+        // Filter gallery
+        if (collectionId === 'all') {
+            document.querySelectorAll('.image-card').forEach(card => {
+                card.style.display = '';
+            });
+        } else {
+            try {
+                const result = await api(`/api/collections/${collectionId}/images`);
+                const collectionFiles = new Set(result.images.map(img => img.filename));
+                
+                document.querySelectorAll('.image-card').forEach(card => {
+                    const inCollection = collectionFiles.has(card.dataset.filename);
+                    card.style.display = inCollection ? '' : 'none';
+                });
+            } catch (e) {
+                // For 'unassigned', show images not in any collection
+                if (collectionId === 'unassigned') {
+                    const allCollResult = await api('/api/collections');
+                    // Would need backend support - for now show all
+                }
+            }
+        }
+    }
+
+    function showCreateCollectionModal() {
+        document.getElementById('new-collection-name').value = '';
+        showModal('create-collection-modal');
+        document.getElementById('new-collection-name').focus();
+    }
+
+    async function createCollection() {
+        const name = document.getElementById('new-collection-name').value.trim();
+        
+        if (!name) {
+            showToast('Please enter a folder name', 'error');
+            return;
+        }
+        
+        try {
+            const result = await api('/api/collections', {
+                method: 'POST',
+                body: JSON.stringify({ name })
+            });
+            
+            if (result.success) {
+                showToast(`Folder "${name}" created!`, 'success');
+                closeModal('create-collection-modal');
+                loadCollections();
+            }
+        } catch (e) {
+            showToast(`Failed to create folder: ${e.message}`, 'error');
+        }
+    }
+
+    function showAssignCollectionModal(filename) {
+        currentFilename = filename;
+        
+        const listDiv = document.getElementById('collection-list-assign');
+        let html = '';
+        
+        for (const coll of collections) {
+            html += `
+                <div class="toggle-wrapper" style="margin-bottom: 0.5rem; cursor: pointer;" 
+                     onclick="assignToCollection('${filename}', '${coll.id}')">
+                    <div>
+                        <div class="toggle-label">${coll.name}</div>
+                        <div class="toggle-description">${coll.count} images</div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        html += `
+            <div class="toggle-wrapper" style="margin-top: 1rem; cursor: pointer;" 
+                 onclick="removeFromCollection('${filename}')">
+                <div>
+                    <div class="toggle-label" style="color: var(--text-muted);">Remove from folder</div>
+                </div>
+            </div>
+        `;
+        
+        listDiv.innerHTML = html;
+        showModal('assign-collection-modal');
+    }
+
+    async function assignToCollection(filename, collectionId) {
+        try {
+            await api(`/api/images/${filename}/collection`, {
+                method: 'POST',
+                body: JSON.stringify({ collection_id: collectionId })
+            });
+            
+            showToast('Image moved to folder', 'success');
+            closeModal('assign-collection-modal');
+            loadCollections();
+        } catch (e) {
+            showToast(`Failed: ${e.message}`, 'error');
+        }
+    }
+
+    async function removeFromCollection(filename) {
+        try {
+            await api(`/api/images/${filename}/collection`, { method: 'DELETE' });
+            showToast('Removed from folder', 'success');
+            closeModal('assign-collection-modal');
+            loadCollections();
+        } catch (e) {
+            showToast(`Failed: ${e.message}`, 'error');
+        }
+    }
+
+    async function exportCurrentCollection() {
+        const collectionId = currentCollection === 'all' ? null : currentCollection;
+        
+        // Get filenames based on current filter
+        let filenames;
+        if (currentCollection === 'all') {
+            const cards = document.querySelectorAll('.image-card');
+            filenames = Array.from(cards).map(card => card.dataset.filename);
+        } else {
+            const visibleCards = document.querySelectorAll('.image-card:not([style*="display: none"])');
+            filenames = Array.from(visibleCards).map(card => card.dataset.filename);
+        }
         
         if (filenames.length === 0) {
             showToast('No images to export', 'error');
@@ -1161,12 +1470,18 @@
         try {
             const result = await api('/api/export-for-usb', {
                 method: 'POST',
-                body: JSON.stringify({ filenames })
+                body: JSON.stringify({ 
+                    filenames,
+                    collection_id: collectionId 
+                })
             });
             
             if (result.success) {
-                showToast(`Exported ${result.exported.length} images! Folder: ${result.export_folder}`, 'success');
-                alert(`✅ Exported ${result.exported.length} images!\n\nFolder location:\n${result.export_folder}\n\nCopy these files to a USB drive and import on your Frame TV:\n1. Insert USB into TV\n2. Go to Art Mode → My Collection\n3. Select "+" → USB`);
+                const folderName = currentCollection === 'all' ? 'All Images' : 
+                    collections.find(c => c.id === currentCollection)?.name || currentCollection;
+                
+                showToast(`Exported ${result.exported.length} images!`, 'success');
+                alert(`✅ Exported "${folderName}" - ${result.exported.length} images!\n\nFolder location:\n${result.export_folder}\n\nCopy this folder to a USB drive and import on your Frame TV:\n1. Insert USB into TV\n2. Go to Art Mode → My Collection\n3. Select "+" → USB`);
             } else {
                 throw new Error(result.error);
             }
@@ -1221,8 +1536,8 @@
                                 <button class="image-action-btn btn-crop" onclick="showCropModal('${img.filename}')" title="Crop for Frame">
                                     ✂ Crop
                                 </button>
-                                <button class="image-action-btn btn-send" onclick="showSendModal('${img.filename}')">
-                                    📺 Send
+                                <button class="image-action-btn btn-view" onclick="showAssignCollectionModal('${img.filename}')" title="Move to folder">
+                                    📁
                                 </button>
                                 <button class="image-action-btn btn-delete-img" onclick="deleteImage('${img.filename}')" title="Delete">
                                     🗑
@@ -1745,6 +2060,7 @@
 
     // Initialize
     loadMattes();
+    loadCollections();
 
     // Close modals on escape key
     document.addEventListener('keydown', (e) => {

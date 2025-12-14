@@ -80,6 +80,36 @@ def load_config() -> dict:
     return default_config
 
 
+# Collections/Folders management
+COLLECTIONS_FILE = os.path.join(os.path.dirname(__file__), 'collections.json')
+
+def load_collections() -> dict:
+    """Load collections from file"""
+    default = {
+        "collections": {
+            "default": {"name": "All Images", "images": []}
+        },
+        "image_assignments": {}  # filename -> collection_id
+    }
+    
+    if os.path.exists(COLLECTIONS_FILE):
+        try:
+            with open(COLLECTIONS_FILE, 'r') as f:
+                return json.load(f)
+        except Exception as e:
+            logger.error(f"Error loading collections: {e}")
+    
+    return default
+
+def save_collections(data: dict):
+    """Save collections to file"""
+    try:
+        with open(COLLECTIONS_FILE, 'w') as f:
+            json.dump(data, f, indent=2)
+    except Exception as e:
+        logger.error(f"Error saving collections: {e}")
+
+
 def save_config(config: dict):
     """Save configuration to file"""
     try:
@@ -604,26 +634,53 @@ def export_for_usb():
     """Export selected images to a folder for USB transfer"""
     data = request.get_json()
     filenames = data.get('filenames', [])
+    collection_id = data.get('collection_id')
+    
+    # If collection specified, get images from that collection
+    if collection_id:
+        collections_data = load_collections()
+        assignments = collections_data.get('image_assignments', {})
+        filenames = [f for f, c in assignments.items() if c == collection_id]
     
     if not filenames:
-        return jsonify({"error": "No files selected"}), 400
+        return jsonify({"error": "No files to export"}), 400
     
-    # Create export folder
-    export_folder = os.path.join(os.path.dirname(__file__), 'export_for_usb')
+    # Create export folder (use collection name if specified)
+    import shutil
+    base_export = os.path.join(os.path.dirname(__file__), 'export_for_usb')
+    
+    if collection_id:
+        collections_data = load_collections()
+        collection_name = collections_data['collections'].get(collection_id, {}).get('name', collection_id)
+        # Clean the name for filesystem
+        safe_name = "".join(c for c in collection_name if c.isalnum() or c in (' ', '-', '_')).strip()
+        export_folder = os.path.join(base_export, safe_name)
+    else:
+        export_folder = os.path.join(base_export, 'all_images')
+    
+    # Clear and recreate folder
+    if os.path.exists(export_folder):
+        shutil.rmtree(export_folder)
     os.makedirs(export_folder, exist_ok=True)
     
     exported = []
     for filename in filenames:
-        # Try processed version first, then original
-        processed_path = os.path.join(PROCESSED_FOLDER, f"{Path(filename).stem}_processed.jpg")
-        if os.path.exists(processed_path):
-            src_path = processed_path
-        else:
-            src_path = os.path.join(UPLOAD_FOLDER, filename)
+        # Try to find the best version of the image
+        # Priority: cropped portrait > cropped landscape > processed > original
+        stem = Path(filename).stem
         
-        if os.path.exists(src_path):
-            # Copy to export folder with clean name
-            import shutil
+        possible_paths = [
+            os.path.join(UPLOAD_FOLDER, filename),  # Original or cropped in uploads
+        ]
+        
+        src_path = None
+        for path in possible_paths:
+            if os.path.exists(path):
+                src_path = path
+                break
+        
+        if src_path:
+            # Copy to export folder with clean sequential name
             dest_name = f"frame_art_{len(exported)+1:03d}.jpg"
             dest_path = os.path.join(export_folder, dest_name)
             shutil.copy2(src_path, dest_path)
@@ -633,8 +690,155 @@ def export_for_usb():
         "success": True,
         "exported": exported,
         "export_folder": export_folder,
+        "collection": collection_id,
         "message": f"Exported {len(exported)} images to: {export_folder}"
     })
+
+
+# Collection management endpoints
+
+@app.route('/api/collections', methods=['GET'])
+def get_collections():
+    """Get all collections"""
+    data = load_collections()
+    
+    # Count images per collection
+    assignments = data.get('image_assignments', {})
+    collection_counts = {}
+    for filename, coll_id in assignments.items():
+        collection_counts[coll_id] = collection_counts.get(coll_id, 0) + 1
+    
+    # Add counts and unassigned count
+    result = []
+    for coll_id, coll_info in data['collections'].items():
+        result.append({
+            "id": coll_id,
+            "name": coll_info.get('name', coll_id),
+            "count": collection_counts.get(coll_id, 0)
+        })
+    
+    # Count unassigned
+    all_images = get_all_images()
+    assigned_images = set(assignments.keys())
+    unassigned = [img for img in all_images if img['filename'] not in assigned_images]
+    
+    return jsonify({
+        "collections": result,
+        "unassigned_count": len(unassigned)
+    })
+
+
+@app.route('/api/collections', methods=['POST'])
+def create_collection():
+    """Create a new collection"""
+    data = request.get_json()
+    name = data.get('name', '').strip()
+    
+    if not name:
+        return jsonify({"error": "Collection name required"}), 400
+    
+    collections_data = load_collections()
+    
+    # Generate ID from name
+    coll_id = name.lower().replace(' ', '_')
+    coll_id = "".join(c for c in coll_id if c.isalnum() or c == '_')
+    
+    # Ensure unique
+    base_id = coll_id
+    counter = 1
+    while coll_id in collections_data['collections']:
+        coll_id = f"{base_id}_{counter}"
+        counter += 1
+    
+    collections_data['collections'][coll_id] = {"name": name}
+    save_collections(collections_data)
+    
+    return jsonify({
+        "success": True,
+        "id": coll_id,
+        "name": name
+    })
+
+
+@app.route('/api/collections/<collection_id>', methods=['DELETE'])
+def delete_collection(collection_id):
+    """Delete a collection"""
+    if collection_id == 'default':
+        return jsonify({"error": "Cannot delete default collection"}), 400
+    
+    collections_data = load_collections()
+    
+    if collection_id not in collections_data['collections']:
+        return jsonify({"error": "Collection not found"}), 404
+    
+    # Remove collection
+    del collections_data['collections'][collection_id]
+    
+    # Unassign images from this collection
+    collections_data['image_assignments'] = {
+        f: c for f, c in collections_data['image_assignments'].items() 
+        if c != collection_id
+    }
+    
+    save_collections(collections_data)
+    
+    return jsonify({"success": True})
+
+
+@app.route('/api/collections/<collection_id>/images', methods=['GET'])
+def get_collection_images(collection_id):
+    """Get images in a collection"""
+    collections_data = load_collections()
+    assignments = collections_data.get('image_assignments', {})
+    
+    # Get filenames in this collection
+    collection_files = [f for f, c in assignments.items() if c == collection_id]
+    
+    # Get full metadata for each
+    images = []
+    for filename in collection_files:
+        metadata = get_image_metadata(filename)
+        if metadata:
+            images.append(metadata)
+    
+    return jsonify({"images": images, "collection_id": collection_id})
+
+
+@app.route('/api/images/<filename>/collection', methods=['POST'])
+def assign_to_collection(filename):
+    """Assign an image to a collection"""
+    data = request.get_json()
+    collection_id = data.get('collection_id')
+    
+    if not collection_id:
+        return jsonify({"error": "collection_id required"}), 400
+    
+    collections_data = load_collections()
+    
+    if collection_id not in collections_data['collections']:
+        return jsonify({"error": "Collection not found"}), 404
+    
+    # Check image exists
+    filepath = os.path.join(UPLOAD_FOLDER, filename)
+    if not os.path.exists(filepath):
+        return jsonify({"error": "Image not found"}), 404
+    
+    collections_data['image_assignments'][filename] = collection_id
+    save_collections(collections_data)
+    
+    return jsonify({"success": True, "filename": filename, "collection_id": collection_id})
+
+
+@app.route('/api/images/<filename>/collection', methods=['DELETE'])
+def remove_from_collection(filename):
+    """Remove an image from its collection"""
+    collections_data = load_collections()
+    
+    if filename in collections_data['image_assignments']:
+        del collections_data['image_assignments'][filename]
+        save_collections(collections_data)
+    
+    return jsonify({"success": True})
 
 
 @app.route('/api/tv/art-list')
