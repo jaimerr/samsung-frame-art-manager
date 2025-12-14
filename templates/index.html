@@ -668,6 +668,9 @@
         <button class="btn btn-secondary" onclick="refreshGallery()">
             ↻ Refresh
         </button>
+        <button class="btn btn-secondary" onclick="exportForUSB()">
+            💾 Export to USB
+        </button>
         {% if tv_connected %}
         <button class="btn btn-primary" onclick="showTVArt()">
             📺 View TV Art
@@ -1132,11 +1135,43 @@
                 throw new Error(result.error);
             }
         } catch (e) {
-            showToast(`Failed to send: ${e.message}`, 'error');
+            // Check if it's a 2022+ TV API issue
+            if (e.message.includes('USB') || e.message.includes('not supported')) {
+                showToast('Direct upload not supported on 2022+ TVs. Use "Export to USB" instead.', 'error');
+            } else {
+                showToast(`Failed to send: ${e.message}`, 'error');
+            }
         } finally {
             btn.disabled = false;
             loading.style.display = 'none';
             text.textContent = 'Send to TV';
+        }
+    }
+
+    async function exportForUSB() {
+        // Get all image filenames from gallery
+        const cards = document.querySelectorAll('.image-card');
+        const filenames = Array.from(cards).map(card => card.dataset.filename);
+        
+        if (filenames.length === 0) {
+            showToast('No images to export', 'error');
+            return;
+        }
+        
+        try {
+            const result = await api('/api/export-for-usb', {
+                method: 'POST',
+                body: JSON.stringify({ filenames })
+            });
+            
+            if (result.success) {
+                showToast(`Exported ${result.exported.length} images! Folder: ${result.export_folder}`, 'success');
+                alert(`✅ Exported ${result.exported.length} images!\n\nFolder location:\n${result.export_folder}\n\nCopy these files to a USB drive and import on your Frame TV:\n1. Insert USB into TV\n2. Go to Art Mode → My Collection\n3. Select "+" → USB`);
+            } else {
+                throw new Error(result.error);
+            }
+        } catch (e) {
+            showToast(`Export failed: ${e.message}`, 'error');
         }
     }
 

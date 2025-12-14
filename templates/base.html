@@ -699,8 +699,8 @@
             }
         }
 
-        // Check status every 30 seconds
-        setInterval(updateTVStatus, 30000);
+        // Check status every 60 seconds (less frequent to avoid connection issues)
+        setInterval(updateTVStatus, 60000);
     </script>
     {% block scripts %}{% endblock %}
 </body>

@@ -586,7 +586,55 @@ def upload_to_tv():
     
     if result.get('success'):
         return jsonify(result)
+    
+    # If upload failed due to API not supported (2022+ TVs), provide helpful message
+    error_msg = result.get('error', '')
+    if 'not supported' in error_msg.lower() or 'failed to parse' in error_msg.lower():
+        return jsonify({
+            "error": "Direct upload not supported on 2022+ Frame TVs. Use 'Export to USB' instead.",
+            "suggestion": "usb_export",
+            "details": "Samsung removed the Art Mode upload API in newer models. Export your images and transfer via USB drive."
+        }), 400
+    
     return jsonify(result), 500
+
+
+@app.route('/api/export-for-usb', methods=['POST'])
+def export_for_usb():
+    """Export selected images to a folder for USB transfer"""
+    data = request.get_json()
+    filenames = data.get('filenames', [])
+    
+    if not filenames:
+        return jsonify({"error": "No files selected"}), 400
+    
+    # Create export folder
+    export_folder = os.path.join(os.path.dirname(__file__), 'export_for_usb')
+    os.makedirs(export_folder, exist_ok=True)
+    
+    exported = []
+    for filename in filenames:
+        # Try processed version first, then original
+        processed_path = os.path.join(PROCESSED_FOLDER, f"{Path(filename).stem}_processed.jpg")
+        if os.path.exists(processed_path):
+            src_path = processed_path
+        else:
+            src_path = os.path.join(UPLOAD_FOLDER, filename)
+        
+        if os.path.exists(src_path):
+            # Copy to export folder with clean name
+            import shutil
+            dest_name = f"frame_art_{len(exported)+1:03d}.jpg"
+            dest_path = os.path.join(export_folder, dest_name)
+            shutil.copy2(src_path, dest_path)
+            exported.append(dest_name)
+    
+    return jsonify({
+        "success": True,
+        "exported": exported,
+        "export_folder": export_folder,
+        "message": f"Exported {len(exported)} images to: {export_folder}"
+    })
 
 
 @app.route('/api/tv/art-list')
